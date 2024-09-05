@@ -1,73 +1,58 @@
 import 'package:flutter/material.dart';
-import 'package:movies/api/api_manger.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:movies/cubit/category_cubit.dart';
 import 'package:movies/tabs/category_movies_screen.dart';
 
-class CategoryTab extends StatefulWidget {
-  @override
-  _CategoryTabState createState() => _CategoryTabState();
-}
-
-class _CategoryTabState extends State<CategoryTab> {
-  late Future<List<Map<String, dynamic>>?> _categoriesFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _categoriesFuture = fetchCategories();
-  }
-
-  Future<List<Map<String, dynamic>>?> fetchCategories() async {
-    var response = await ApiManager().getCategories();
-
-    if (response != null && response['genres'] != null) {
-      List<dynamic> genres = response['genres'];
-      return genres.map((genre) => genre as Map<String, dynamic>).toList();
-    }
-    return null;
-  }
-
+class CategoryTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<Map<String, dynamic>>?>(
-      future: _categoriesFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(child: CircularProgressIndicator());
-        } else if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        } else if (!snapshot.hasData || snapshot.data == null) {
-          return Center(child: Text('No categories available.'));
-        } else {
-          final categories = snapshot.data!;
-          return GridView.builder(
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 8.0,
-              mainAxisSpacing: 8.0,
-            ),
-            itemCount: categories.length,
-            itemBuilder: (context, index) {
-              final genre = categories[index];
-              return InkWell(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => MoviesByCategoryScreen(
-                        genreId: genre['id'],
-                        genreName: genre['name'] ?? 'Unknown Genre',
-                      ),
+    return BlocProvider(
+      create: (context) => CategoryCubit()..fetchCategories(),
+      child: Scaffold(
+        body: BlocBuilder<CategoryCubit, CategoryState>(
+          builder: (context, state) {
+            if (state is CategoryLoading) {
+              return Center(child: CircularProgressIndicator());
+            } else if (state is CategoryError) {
+              return Center(child: Text('Error: ${state.message}'));
+            } else if (state is CategoryLoaded) {
+              final categories = state.categories;
+              if (categories.isEmpty) {
+                return Center(child: Text('No categories available.'));
+              }
+              return GridView.builder(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 8.0,
+                  mainAxisSpacing: 8.0,
+                ),
+                itemCount: categories.length,
+                itemBuilder: (context, index) {
+                  final genre = categories[index];
+                  return InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => MoviesByCategoryScreen(
+                            genreId: genre['id'],
+                            genreName: genre['name'] ?? 'Unknown Genre',
+                          ),
+                        ),
+                      );
+                    },
+                    child: CategoryCard(
+                      genreName: genre['name'] ?? 'Unknown Genre',
                     ),
                   );
                 },
-                child: CategoryCard(
-                  genreName: genre['name'] ?? 'Unknown Genre',
-                ),
               );
-            },
-          );
-        }
-      },
+            } else {
+              return Center(child: Text('No categories available.'));
+            }
+          },
+        ),
+      ),
     );
   }
 }
@@ -89,8 +74,8 @@ class CategoryCard extends StatelessWidget {
             Expanded(
               child: Image.asset(
                 'assets/images/film.png',
-                fit: BoxFit.cover, // Cover the entire area of the grid cell
-                width: double.infinity, // Make the image take the full width of the cell
+                fit: BoxFit.cover,
+                width: double.infinity,
               ),
             ),
             SizedBox(height: 8.0),
@@ -105,5 +90,3 @@ class CategoryCard extends StatelessWidget {
     );
   }
 }
-
-

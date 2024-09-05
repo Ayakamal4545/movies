@@ -16,4 +16,5 @@ static const String movieId="";
   static const String similerSourceApi='/3/movie/movie_id/similar';
   static const String categoryApi='/3/genre/movie/list';
   static const String discoverApi='/3/discover/movie';
+  static const String searchApi='/3/search/movie';
 }

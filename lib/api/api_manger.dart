@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:movies/api/api_constants.dart';
+import 'package:movies/model/movie.dart';
 
 
 class ApiManager {
@@ -41,16 +42,29 @@ class ApiManager {
     }
   }
 
-  void fetchMovieDetails(String movieId) async {
-    ApiManager apiManager = ApiManager();
-    var movieDetails = await apiManager._getMovies('/3/movie/$movieId');
+  Future<Map<String, dynamic>?> fetchMovieDetails(String movieId) async {
+    if (movieId.isEmpty) {
+      print('Movie ID is empty');
+      return null;
+    }
 
-    if (movieDetails != null) {
-      print('Movie Details: $movieDetails');
-    } else {
-      print('Failed to fetch movie details');
+    try {
+      ApiManager apiManager = ApiManager();
+      var movieDetails = await apiManager._getMovies('/3/movie/$movieId');
+
+      if (movieDetails != null) {
+        print('Movie Details: $movieDetails');
+        return movieDetails;
+      } else {
+        print('Failed to fetch movie details');
+        return null;
+      }
+    } catch (e) {
+      print('Error occurred while fetching movie details: $e');
+      return null;
     }
   }
+
 
   Future<Map<String, dynamic>?> getMovieImages(String movieId) async {
     if (movieId.isEmpty) {
@@ -78,27 +92,64 @@ class ApiManager {
 
 
   Future<Map<String, dynamic>?> getSimilarMovies(String movieId) async {
+    if (movieId.isEmpty) {
+      print('Movie ID is empty');
+      return null;
+    }
+
+    Uri url = Uri.https(ApiConstants.baseUrl,
+        ApiConstants.similerSourceApi.replaceFirst('movie_id', movieId), {
+          'api_key': ApiConstants.apiKey,
+        });
+
+    print('Constructed URL: $url');
+
     try {
-      Uri url = Uri.https(ApiConstants.baseUrl,
-          ApiConstants.similerSourceApi.replaceFirst('movie_id', movieId), {
-            'api_key': ApiConstants.apiKey,
-          });
-      http.Response response = await http.get(
-          url, headers: ApiConstants.headers);
+      final response = await http.get(url, headers: ApiConstants.headers);
+      print('Response status code: ${response.statusCode}');
 
       if (response.statusCode == 200) {
-        String data = response.body;
-        var jsonData = jsonDecode(data);
-        return jsonData;
+        print('Response body: ${response.body}');
+        return jsonDecode(response.body);
       } else {
-        print('Failed to load similar movies: ${response.statusCode}');
-        return null;
+        return _handleHttpError(response);
       }
+    } on FormatException catch (e) {
+      print('Format error: $e');
+      return null;
+    } on SocketException catch (e) {
+      print('Network error: $e');
+      return null;
     } catch (e) {
-      print('Error occurred while fetching similar movies: $e');
+      print('General error: $e');
       return null;
     }
   }
+
+  Map<String, dynamic>? _handleHttpError(http.Response response) {
+    switch (response.statusCode) {
+      case 401:
+        print('Unauthorized: Check your API key.');
+        break;
+      case 404:
+        print('Not Found: The requested resource could not be found.');
+        break;
+      case 429:
+        print('Too Many Requests: Rate limit exceeded.');
+        break;
+      case 500:
+      case 502:
+      case 503:
+      case 504:
+        print('Server error: Try again later.');
+        break;
+      default:
+        print('Failed to load similar movies. Status code: ${response.statusCode}');
+        break;
+    }
+    return null;
+  }
+
 
   Future<Map<String, dynamic>?> getCategories() async {
     try {
@@ -168,4 +219,26 @@ class ApiManager {
       rethrow;
     }
   }
+
+  Future<List<Movie>> searchMovies(String query) async {
+    final url = Uri.https(
+      ApiConstants.baseUrl,
+      ApiConstants.searchApi,
+      {
+        'api_key': ApiConstants.apiKey,
+        'query': query,
+      },
+    );
+
+    final response = await http.get(url, headers: ApiConstants.headers);
+
+    if (response.statusCode == 200) {
+      final Map<String, dynamic> data = json.decode(response.body);
+      final List<dynamic> results = data['results'];
+
+      return results.map((item) => Movie.fromJson(item)).toList();
+    } else {
+      throw Exception('Failed to load movies');
+    }
+}
 }
